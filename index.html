@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมจับผิดภาพ: คำควบกล้ำหรรษา ป.3</title>
+    <!-- ใช้ Tailwind CSS สำหรับจัด Layout และ Styling พื้นฐาน -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ใช้ Google Fonts: Mali ซึ่งเหมาะกับสื่อการเรียนการสอนเด็ก -->
+    <link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Mali', cursive; 
+            background-color: #fdf2f8; /* พื้นหลังสีชมพูอ่อน */
+            background-image: radial-gradient(#fbcfe8 2px, transparent 2px);
+            background-size: 30px 30px;
+        }
+
+        /* พื้นหลังของภาพแต่ละฝั่ง (จำลองฉากทุ่งหญ้าและท้องฟ้า) */
+        .scene-bg {
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 60%, #a3e635 60%, #a3e635 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ตกแต่งฉาก */
+        .sun {
+            position: absolute;
+            top: 5%;
+            left: 5%;
+            width: 50px;
+            height: 50px;
+            background: #FFD700;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #FFD700;
+        }
+
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 20px;
+            height: 30px;
+            opacity: 0.9;
+        }
+        .cloud::before {
+            content: ''; position: absolute; background: white; width: 30px; height: 30px; border-radius: 50%; top: -15px; left: 10px;
+        }
+        .cloud::after {
+            content: ''; position: absolute; background: white; width: 20px; height: 20px; border-radius: 50%; top: -10px; right: 10px;
+        }
+
+        /* ไอเทมคำศัพท์ในฉาก */
+        .item-container {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+            user-select: none;
+            width: 80px;
+            height: 80px;
+        }
+
+        .item-interactive {
+            cursor: pointer;
+        }
+
+        .item-interactive:hover {
+            transform: scale(1.15);
+        }
+
+        .item-emoji { 
+            font-size: 2.5rem; 
+            line-height: 1; 
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.1));
+        }
+
+        .item-text {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            margin-top: 2px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            border: 2px solid transparent;
+            white-space: nowrap;
+        }
+
+        /* เอฟเฟกต์วงกลมเมื่อหาจุดเจอ */
+        .found-circle {
+            position: absolute;
+            top: -10px; right: -20px; bottom: -10px; left: -20px;
+            border: 5px solid #ef4444;
+            border-radius: 50%;
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: none; /* ป้องกันการคลิกซ้ำที่ขอบวงกลม */
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* เอฟเฟกต์สั่นเมื่อคลิกผิด */
+        .wrong-click {
+            animation: shake 0.4s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px) rotate(-5deg); }
+            40%, 80% { transform: translateX(5px) rotate(5deg); }
+        }
+
+        /* Modal ซ้อนทับ */
+        .overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="min-h-screen py-6 px-4 flex flex-col items-center">
+
+    <!-- ส่วนหัวของเกม -->
+    <header class="text-center mb-6">
+        <h1 class="text-4xl md:text-5xl font-bold text-pink-600 mb-2 drop-shadow-md">
+            🔍 เกมจับผิดภาพ คำควบกล้ำ
+        </h1>
+        <p class="text-lg md:text-xl text-gray-700 bg-white inline-block px-6 py-2 rounded-full shadow-sm border-2 border-pink-200">
+            จับผิดภาพขวามือ! หาคำควบกล้ำที่ <span class="text-red-500 font-bold">เขียนผิด</span> ให้ครบ 5 จุดนะจ๊ะ
+        </p>
+    </header>
+
+    <!-- ป้ายคะแนน -->
+    <div class="mb-4 bg-yellow-300 px-8 py-3 rounded-2xl shadow-lg border-4 border-yellow-400 flex items-center gap-4">
+        <span class="text-2xl font-bold text-yellow-800">ค้นพบแล้ว:</span>
+        <div id="stars-container" class="flex text-3xl">
+            <!-- ดาวจะถูกเพิ่มด้วย JS -->
+            <span class="text-gray-400">☆</span><span class="text-gray-400">☆</span><span class="text-gray-400">☆</span><span class="text-gray-400">☆</span><span class="text-gray-400">☆</span>
+        </div>
+        <span id="score-text" class="text-2xl font-bold text-yellow-800 ml-2">0 / 5</span>
+    </div>
+
+    <!-- กระดานเกมหลัก -->
+    <div class="flex flex-col md:flex-row w-full max-w-5xl gap-4 md:gap-8">
+        
+        <!-- ฝั่งซ้าย: ต้นฉบับ (คำที่เขียนถูก) -->
+        <div class="w-full md:w-1/2 flex flex-col rounded-2xl overflow-hidden shadow-xl border-4 border-blue-400 bg-white">
+            <div class="bg-blue-400 text-white text-center py-3 text-xl font-bold">
+                ภาพต้นฉบับ (คำที่เขียนถูก ✨)
+            </div>
+            <div id="left-scene" class="scene-bg aspect-[4/3] w-full">
+                <!-- ตกแต่งฉาก -->
+                <div class="sun"></div>
+                <div class="cloud w-16" style="top: 15%; left: 30%"></div>
+                <div class="cloud w-20" style="top: 10%; right: 20%"></div>
+                <div class="cloud w-12" style="top: 30%; left: 70%"></div>
+                <!-- ไอเทมจะถูกเพิ่มที่นี่ -->
+            </div>
+        </div>
+
+        <!-- ฝั่งขวา: จับผิดภาพ (คำที่มีข้อผิดพลาด) -->
+        <div class="w-full md:w-1/2 flex flex-col rounded-2xl overflow-hidden shadow-xl border-4 border-red-400 bg-white relative">
+            <div class="bg-red-400 text-white text-center py-3 text-xl font-bold animate-pulse">
+                ภาพมีจุดผิด! (หาคำที่เขียนผิด 🧐)
+            </div>
+            <div id="right-scene" class="scene-bg aspect-[4/3] w-full">
+                <!-- ตกแต่งฉากให้เหมือนฝั่งซ้าย -->
+                <div class="sun"></div>
+                <div class="cloud w-16" style="top: 15%; left: 30%"></div>
+                <div class="cloud w-20" style="top: 10%; right: 20%"></div>
+                <div class="cloud w-12" style="top: 30%; left: 70%"></div>
+                <!-- ไอเทมจะถูกเพิ่มที่นี่ -->
+            </div>
+        </div>
+        
+    </div>
+
+    <!-- ปุ่มเริ่มเกม (Modal กั้นเพื่อเปิดสิทธิ์ระบบเสียงของเบราว์เซอร์) -->
+    <div id="start-modal" class="fixed inset-0 overlay flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md border-4 border-pink-400 transform transition-all scale-100">
+            <h2 class="text-3xl font-bold text-pink-600 mb-4">พร้อมเล่นหรือยัง?</h2>
+            <p class="text-lg text-gray-600 mb-6">คลิกหาคำควบกล้ำที่เขียนผิดใน <b>"ภาพทางขวามือ"</b> ให้ครบ 5 คำนะ</p>
+            <button onclick="startGame()" class="bg-pink-500 hover:bg-pink-600 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg transform transition hover:scale-105 active:scale-95">
+                เริ่มเกมเลย! 🚀
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal ยินดีด้วย (ชนะเกม) -->
+    <div id="win-modal" class="fixed inset-0 overlay flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl text-center max-w-md border-4 border-yellow-400 animate-bounce">
+            <div class="text-6xl mb-4">🏆🎉</div>
+            <h2 class="text-3xl font-bold text-yellow-600 mb-2">เก่งมากจ้า!</h2>
+            <p class="text-xl text-gray-700 mb-6">หนูหาคำควบกล้ำที่เขียนผิดเจอครบทั้ง 5 คำเลย!</p>
+            <button onclick="resetGame()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg transform transition hover:scale-105 active:scale-95">
+                เล่นอีกครั้ง 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ข้อมูลคำศัพท์และตำแหน่งบนหน้าจอ
+        const gameItems = [
+            // 5 คำที่เป็น "จุดต่าง" (เขียนผิด)
+            { id: 1, top: '10%', left: '15%', emoji: '🍌', correct: 'กล้วย', wrong: 'ก้วย', isDiff: true },
+            { id: 2, top: '45%', left: '10%', emoji: '🌶️', correct: 'พริก', wrong: 'พิก', isDiff: true },
+            { id: 3, top: '70%', left: '25%', emoji: '🐟', correct: 'ปลา', wrong: 'ปา', isDiff: true },
+            { id: 4, top: '80%', left: '60%', emoji: '🪓', correct: 'ขวาน', wrong: 'ขาน', isDiff: true },
+            { id: 5, top: '55%', left: '75%', emoji: '🧹', correct: 'แปรง', wrong: 'แปง', isDiff: true },
+            
+            // 5 คำที่เป็น "จุดเหมือน" (เขียนถูกเหมือนเดิม เป็นตัวหลอก)
+            { id: 6, top: '15%', left: '50%', emoji: '🥥', correct: 'มะพร้าว', wrong: 'มะพร้าว', isDiff: false },
+            { id: 7, top: '35%', left: '40%', emoji: '🥒', correct: 'แตงกวา', wrong: 'แตงกวา', isDiff: false },
+            { id: 8, top: '30%', left: '80%', emoji: '🦌', correct: 'กวาง', wrong: 'กวาง', isDiff: false },
+            { id: 9, top: '75%', left: '5%', emoji: '🧑‍🏫', correct: 'ครู', wrong: 'ครู', isDiff: false },
+            { id: 10, top: '65%', left: '85%', emoji: '🚣', correct: 'คลอง', wrong: 'คลอง', isDiff: false }
+        ];
+
+        let foundItems = [];
+        let audioCtx;
+
+        // ระบบเสียงสร้างเองด้วย Web Audio API (ไม่พึ่งไฟล์ภายนอก)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'correct') {
+                // เสียงปิ๊ง! สดใส
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1600, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'wrong') {
+                // เสียงแป่ววว (เบาๆ)
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(250, audioCtx.currentTime);
+                oscillator.frequency.linearRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'win') {
+                // เสียงเพลงชัยชนะแบบง่ายๆ
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C E G C
+                notes.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gn = audioCtx.createGain();
+                    osc.connect(gn);
+                    gn.connect(audioCtx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gn.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.15);
+                    gn.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + i * 0.15 + 0.05);
+                    gn.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.3);
+                    osc.start(audioCtx.currentTime + i * 0.15);
+                    osc.stop(audioCtx.currentTime + i * 0.15 + 0.3);
+                });
+            }
+        }
+
+        // เริ่มเกมและเรนเดอร์ภาพ
+        function startGame() {
+            initAudio();
+            document.getElementById('start-modal').classList.add('hidden');
+            renderGame();
+        }
+
+        function renderGame() {
+            const leftScene = document.getElementById('left-scene');
+            const rightScene = document.getElementById('right-scene');
+            
+            // ลบของเก่าออกก่อน (เก็บแค่ของตกแต่งฉาก)
+            const oldItems = document.querySelectorAll('.game-element');
+            oldItems.forEach(item => item.remove());
+
+            gameItems.forEach(item => {
+                // ฝั่งซ้าย (เฉลย - เขียนถูก)
+                const leftDiv = document.createElement('div');
+                leftDiv.className = 'item-container game-element';
+                leftDiv.style.top = item.top;
+                leftDiv.style.left = item.left;
+                leftDiv.innerHTML = `
+                    <div class="item-emoji">${item.emoji}</div>
+                    <div class="item-text text-blue-600">${item.correct}</div>
+                `;
+                leftScene.appendChild(leftDiv);
+
+                // ฝั่งขวา (กระดานเล่นเกม)
+                const rightDiv = document.createElement('div');
+                rightDiv.className = 'item-container item-interactive game-element';
+                rightDiv.id = 'right-item-' + item.id;
+                rightDiv.style.top = item.top;
+                rightDiv.style.left = item.left;
+                
+                // ถ้าคำนั้นเป็นจุดต่าง(ผิด) ให้สุ่มสีตัวหนังสือเป็นสีแดงเพื่อดึงดูดสายตาเล็กน้อย หรือใช้สีปกติเพื่อให้เนียน
+                const textColorClass = item.isDiff ? 'text-red-600' : 'text-blue-600';
+                
+                rightDiv.innerHTML = `
+                    <div class="item-emoji">${item.emoji}</div>
+                    <div class="item-text ${textColorClass}">${item.wrong}</div>
+                `;
+                
+                // จัดการคลิก
+                rightDiv.onclick = () => handleItemClick(item, rightDiv);
+                
+                rightScene.appendChild(rightDiv);
+            });
+            
+            updateScoreUI();
+        }
+
+        function handleItemClick(item, element) {
+            // ป้องกันคลิกซ้ำอันที่เจอแล้ว
+            if (foundItems.includes(item.id)) return;
+
+            if (item.isDiff) {
+                // ทายถูก (เจอจุดผิด)
+                foundItems.push(item.id);
+                playSound('correct');
+                
+                // สร้างวงกลมเฉลย
+                const circle = document.createElement('div');
+                circle.className = 'found-circle';
+                element.appendChild(circle);
+                
+                // แก้คำผิดให้กลับมาถูก
+                const textDiv = element.querySelector('.item-text');
+                textDiv.innerText = item.correct;
+                textDiv.className = 'item-text text-green-600 border-green-400 bg-green-50';
+
+                updateScoreUI();
+                
+                // ตรวจสอบชนะ
+                if (foundItems.length === 5) {
+                    setTimeout(() => {
+                        playSound('win');
+                        document.getElementById('win-modal').classList.remove('hidden');
+                    }, 500);
+                }
+            } else {
+                // ทายผิด (อันนี้คำเขียนถูกอยู่แล้ว)
+                playSound('wrong');
+                // รีเซ็ต animation ด้วยการเอา class ออกแล้วใส่ใหม่
+                element.classList.remove('wrong-click');
+                void element.offsetWidth; // trigger reflow เพื่อให้ animation ทำงานใหม่
+                element.classList.add('wrong-click');
+            }
+        }
+
+        function updateScoreUI() {
+            const scoreText = document.getElementById('score-text');
+            const starsContainer = document.getElementById('stars-container');
+            
+            scoreText.innerText = `${foundItems.length} / 5`;
+            
+            let starsHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= foundItems.length) {
+                    starsHTML += '<span class="text-yellow-500 drop-shadow transform scale-110 transition duration-300">⭐</span>';
+                } else {
+                    starsHTML += '<span class="text-gray-300">☆</span>';
+                }
+            }
+            starsContainer.innerHTML = starsHTML;
+        }
+
+        function resetGame() {
+            foundItems = [];
+            document.getElementById('win-modal').classList.add('hidden');
+            renderGame();
+        }
+    </script>
+</body>
+</html>
